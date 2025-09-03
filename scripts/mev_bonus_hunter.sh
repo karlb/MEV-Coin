@@ -153,13 +153,13 @@ wait_for_target_block() {
     elif [ $wait_seconds -gt 0 ]; then
         log "🎯 Entering active monitoring phase..."
     fi
-    current_block=$(cast block-number --rpc-url "$RPC_URL")
+    current_block=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null)
     
-    while [ $current_block -lt $((target_block - lead_time)) ]; do
+    while [ -n "$current_block" ] && [ "$current_block" -lt $((target_block - lead_time)) ]; do
         sleep 0.1
         local prev_block=$current_block
-        current_block=$(cast block-number --rpc-url "$RPC_URL")
-        if [ $current_block -ne $prev_block ]; then
+        current_block=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null)
+        if [ -n "$current_block" ] && [ -n "$prev_block" ] && [ "$current_block" -ne "$prev_block" ]; then
             log "📊 Block $current_block mined (target: $((target_block - lead_time)))"
         fi
     done
@@ -174,17 +174,20 @@ send_mev_transfer() {
     log "Sending MEV bonus transfer to $recipient..."
     
     # Send transfer with 0 amount to trigger MEV bonus
-    TX_HASH=$(cast send "$contract_addr" \
+    TX_OUTPUT=$(cast send "$contract_addr" \
         "transfer(address,uint256)(bool)" \
         "$recipient" \
         "0" \
         --private-key "$PRIVATE_KEY" \
         --rpc-url "$RPC_URL" \
         --gas-limit 200000 \
-        --gas-price 2000000000 \
-        2>/dev/null)
+        --gas-price 35000000000 \
+        2>&1)
     
-    if [ $? -eq 0 ]; then
+    CAST_EXIT_CODE=$?
+    
+    if [ $CAST_EXIT_CODE -eq 0 ]; then
+        TX_HASH="$TX_OUTPUT"
         log "Transaction sent: $TX_HASH"
         
         # Check immediately if we got the bonus
@@ -199,7 +202,7 @@ send_mev_transfer() {
             return 1
         fi
     else
-        error "Failed to send transaction"
+        error "Failed to send transaction: $TX_OUTPUT"
         return 1
     fi
 }

@@ -4,18 +4,17 @@
 # This script queries MEV-Coin data from the blockchain and generates a static HTML dashboard
 
 set -e
-set -x
 
 # Configuration
 CONTRACT_ADDRESS="0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E"
-RPC_URL="${ETH_RPC_URL:-http://localhost:8545}"
+RPC_URL="${ETH_RPC_URL:-https://forno.celo-sepolia.celo-testnet.org}"
 OUTPUT_FILE="../docs/index.html"
 
 echo "🚀 Generating MEV-Coin Dashboard..."
 
 # Function to get recent MEV bonus events
 get_mev_bonuses() {
-    echo "📊 Fetching recent MEV bonuses..."
+    echo "📊 Fetching recent MEV bonuses..." >&2
     
     # Get MEVBonus event signature: keccak256("MEVBonus(address,uint256,uint256)")
     EVENT_SIG="0x826b1be11be0f32436b1ada51990b85f7ce3cc224a513b6a3fb726005d818726"
@@ -27,40 +26,73 @@ get_mev_bonuses() {
         from_block=0
     fi
     
-    # Query MEVBonus events
-    cast logs --rpc-url "$RPC_URL" \
+    # Query MEVBonus events and parse them
+    events_html=""
+    event_count=0
+    
+    # Get events in JSON format for easier parsing
+    events=$(cast logs --rpc-url "$RPC_URL" \
         --from-block "$from_block" \
         --address "$CONTRACT_ADDRESS" \
-        "$EVENT_SIG" | head -20 || echo "No recent MEV events found"
+        "$EVENT_SIG" 2>/dev/null || echo "")
+    
+    if [ -n "$events" ]; then
+        # Parse each event (simplified parsing - look for key data)
+        while IFS= read -r line; do
+            if [[ "$line" =~ blockNumber:\ ([0-9]+) ]]; then
+                block_num="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ transactionHash:\ (0x[a-fA-F0-9]+) ]]; then
+                tx_hash="${BASH_REMATCH[1]}"
+            elif [[ "$line" =~ 0x000000000000000000000000([a-fA-F0-9]+) ]]; then
+                # Extract recipient address from topics
+                recipient="0x${BASH_REMATCH[1]}"
+                if [ ${#recipient} -eq 42 ]; then  # Valid address length
+                    tx_short="${tx_hash:0:10}..."
+                    if [ -z "$tx_hash" ]; then
+                        tx_short="N/A"
+                    fi
+                    events_html="$events_html<tr><td class=\"address\">$recipient</td><td>100 MEV</td><td>$block_num</td><td class=\"address\">$tx_short</td></tr>"
+                    event_count=$((event_count + 1))
+                    if [ $event_count -ge 10 ]; then
+                        break
+                    fi
+                fi
+            fi
+        done <<< "$events"
+    fi
+    
+    echo "$events_html"
 }
 
 # Function to get top MEV-Coin holders
 get_top_holders() {
-    echo "💰 Fetching top MEV-Coin balances..."
+    echo "💰 Fetching top MEV-Coin balances..." >&2
     
-    # For demonstration, we'll check some common addresses
-    # In a real implementation, you'd need to track Transfer events to find all holders
-    
+    # Check addresses that might have received MEV bonuses
     addresses=(
         "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"  # Default anvil account 0
         "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"  # Default anvil account 1
         "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"  # Default anvil account 2
         "0x90f79bf6eb2c4f870365e785982e1f101e93b906"  # Default anvil account 3
+        "0xf8750d245f7a87c0d8bd433a8205d4129051ef18"  # Address from the event logs
     )
     
     holder_data=""
     for addr in "${addresses[@]}"; do
-        balance=$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" "balanceOf(address)" "$addr" 2>/dev/null || echo "0x0")
-        # Handle empty or invalid responses
-        if [ -z "$balance" ] || [ "$balance" = "0x" ]; then
-            balance="0x0"
+        # Get balance with better error handling
+        balance_hex=$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" "balanceOf(address)" "$addr" 2>/dev/null)
+        
+        # Skip if call failed or returned empty
+        if [ -z "$balance_hex" ] || [ "$balance_hex" = "0x" ] || [ "$balance_hex" = "0x0" ]; then
+            continue
         fi
-        if [ "$balance" != "0x0" ] && [ "$balance" != "0" ]; then
-            # Convert from wei to tokens (18 decimals)
-            balance_eth=$(cast to-unit "$balance" ether 2>/dev/null || echo "0.0")
-            if [ "$balance_eth" != "0.0" ]; then
-                holder_data="$holder_data<tr><td>$addr</td><td>$balance_eth MEV</td></tr>"
-            fi
+        
+        # Convert using cast to-unit for proper handling
+        balance_eth=$(cast to-unit "$balance_hex" ether 2>/dev/null || echo "0")
+        
+        # Only add if balance is meaningful
+        if [ "$balance_eth" != "0" ] && [ "$balance_eth" != "0.0" ] && [ "$balance_eth" != ".00" ]; then
+            holder_data="$holder_data<tr><td class=\"address\">$addr</td><td>$balance_eth MEV</td></tr>"
         fi
     done
     
@@ -69,18 +101,21 @@ get_top_holders() {
 
 # Function to get contract stats
 get_contract_stats() {
-    echo "📈 Fetching contract statistics..."
+    echo "📈 Fetching contract statistics..." >&2
     
     # Get total supply
-    total_supply=$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" "totalSupply()" 2>/dev/null || echo "0x0")
+    total_supply_hex=$(cast call --rpc-url "$RPC_URL" "$CONTRACT_ADDRESS" "totalSupply()" 2>/dev/null)
+    
     # Handle empty or invalid responses
-    if [ -z "$total_supply" ] || [ "$total_supply" = "0x" ]; then
-        total_supply="0x0"
+    if [ -z "$total_supply_hex" ] || [ "$total_supply_hex" = "0x" ]; then
+        total_supply_eth="0.0"
+    else
+        # Use cast to-unit for proper conversion
+        total_supply_eth=$(cast to-unit "$total_supply_hex" ether 2>/dev/null || echo "0.0")
     fi
-    total_supply_eth=$(cast to-unit "$total_supply" ether 2>/dev/null || echo "0.0")
     
     # Get current block
-    current_block=$(cast block-number --rpc-url "$RPC_URL")
+    current_block=$(cast block-number --rpc-url "$RPC_URL" 2>/dev/null || echo "Unknown")
     
     echo "$total_supply_eth|$current_block"
 }
@@ -239,12 +274,20 @@ generate_html() {
         <div class="section">
             <h2>🎉 Recent MEV Bonuses</h2>
             <p>Latest MEV bonus events (100 MEV tokens awarded at every 100th block)</p>
-            <div id="mev-events">
-                <div class="no-data">
-                    <p>No recent MEV bonus events found. MEV bonuses are awarded when transfers occur at blocks that are multiples of 100.</p>
-                    <p>Try making some transfers to trigger MEV bonuses!</p>
-                </div>
-            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipient</th>
+                        <th>Amount</th>
+                        <th>Block</th>
+                        <th>Transaction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    $mev_events
+                    $(if [ -z "$mev_events" ]; then echo '<tr><td colspan="4" class="no-data">No recent MEV bonus events found. MEV bonuses are awarded when transfers occur at blocks that are multiples of 100.</td></tr>'; fi)
+                </tbody>
+            </table>
         </div>
 
         <div class="section">

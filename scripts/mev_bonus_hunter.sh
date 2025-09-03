@@ -171,38 +171,57 @@ send_mev_transfer() {
     local contract_addr=$1
     local recipient=$2
     
-    log "Sending MEV bonus transfer to $recipient..."
+    log "🚀 Sending 3 async MEV capture transactions to $recipient..."
     
-    # Send transfer with 0 amount to trigger MEV bonus
-    TX_OUTPUT=$(cast send "$contract_addr" \
-        "transfer(address,uint256)(bool)" \
-        "$recipient" \
-        "0" \
-        --private-key "$PRIVATE_KEY" \
-        --rpc-url "$RPC_URL" \
-        --gas-limit 200000 \
-        --gas-price 35000000000 \
-        2>&1)
+    # Send 3 async transactions with slightly different gas prices for variety
+    local tx_hashes=()
+    local base_gas=35000000000
     
-    CAST_EXIT_CODE=$?
-    
-    if [ $CAST_EXIT_CODE -eq 0 ]; then
-        TX_HASH="$TX_OUTPUT"
-        log "Transaction sent: $TX_HASH"
+    for i in 1 2 3; do
+        local gas_price=$((base_gas + i * 1000000000))  # 35, 36, 37 Gwei
+        TX_OUTPUT=$(cast send "$contract_addr" \
+            "transfer(address,uint256)(bool)" \
+            "$recipient" \
+            "0" \
+            --private-key "$PRIVATE_KEY" \
+            --rpc-url "$RPC_URL" \
+            --gas-limit 200000 \
+            --gas-price $gas_price \
+            --async \
+            2>&1)
         
-        # Check immediately if we got the bonus
-        BALANCE=$(cast call "$contract_addr" "balanceOf(address)(uint256)" "$recipient" --rpc-url "$RPC_URL")
-        BALANCE_ETH=$(cast to-unit "$BALANCE" ether 2>/dev/null || echo "0")
-        
-        if [ "$BALANCE" != "0" ]; then
-            log "🎉 SUCCESS! MEV bonus captured! New balance: $BALANCE_ETH MEV"
-            return 0
+        if [ $? -eq 0 ]; then
+            tx_hashes+=("$TX_OUTPUT")
+            log "📤 Transaction $i sent: $TX_OUTPUT (${gas_price} wei gas)"
         else
-            warn "Transaction sent but no bonus received. May have been front-run."
-            return 1
+            warn "❌ Transaction $i failed: $TX_OUTPUT"
         fi
+        
+        # Small delay between sends
+        sleep 0.1
+    done
+    
+    log "⏳ Waiting 3 seconds for transactions to be mined..."
+    sleep 3
+    
+    # Check if we got the MEV bonus
+    BALANCE=$(cast call "$contract_addr" "balanceOf(address)(uint256)" "$recipient" --rpc-url "$RPC_URL" 2>/dev/null)
+    BALANCE_ETH=$(cast to-unit "$BALANCE" ether 2>/dev/null || echo "0")
+    
+    if [ "$BALANCE" != "0" ] && [ "$BALANCE_ETH" != "0" ]; then
+        log "🎉 SUCCESS! MEV bonus captured! New balance: $BALANCE_ETH MEV"
+        
+        # Check which transaction(s) succeeded
+        for tx_hash in "${tx_hashes[@]}"; do
+            RECEIPT=$(cast receipt "$tx_hash" --rpc-url "$RPC_URL" 2>/dev/null)
+            if echo "$RECEIPT" | grep -q "status.*1"; then
+                BLOCK=$(echo "$RECEIPT" | grep "blockNumber" | awk '{print $2}')
+                log "✅ Winning transaction: $tx_hash (block $BLOCK)"
+            fi
+        done
+        return 0
     else
-        error "Failed to send transaction: $TX_OUTPUT"
+        warn "❌ All transactions failed or were front-run. Balance: $BALANCE_ETH MEV"
         return 1
     fi
 }
@@ -264,7 +283,7 @@ main() {
         fi
         
         # Wait until we're close to the target block (with lead time for transaction processing)
-        LEAD_TIME=8  # Submit transaction 8 blocks early to account for latency
+        LEAD_TIME=3  # Submit transaction 8 blocks early to account for latency
         
         if [ $BLOCKS_TO_WAIT -gt $LEAD_TIME ]; then
             wait_for_target_block "$CURRENT_BLOCK" "$NEXT_MEV_BLOCK" "$LEAD_TIME"

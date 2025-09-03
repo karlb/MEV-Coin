@@ -171,16 +171,18 @@ send_mev_transfer() {
     local contract_addr=$1
     local recipient=$2
     local base_nonce=$3
+    local target_block=$4
     
-    log "🚀 Sending 3 async MEV capture transactions to $recipient... (nonce: $base_nonce+)"
+    log "🚀 Sending 3 MEV transactions (nonce: $base_nonce+) for block $target_block"
     
-    # Send 3 async transactions with explicit nonces and different gas prices
+    # Send 3 transactions immediately without delays
     local tx_hashes=()
     local base_gas=35000000000
+    local send_start_time=$(date +%s)
     
     for i in 1 2 3; do
-        local nonce=$((base_nonce + i - 1))  # nonce, nonce+1, nonce+2
-        local gas_price=$((base_gas + i * 1000000000))  # 35, 36, 37 Gwei
+        local nonce=$((base_nonce + i - 1))
+        local gas_price=$((base_gas + i * 1000000000))
         TX_OUTPUT=$(cast send "$contract_addr" \
             "transfer(address,uint256)(bool)" \
             "$recipient" \
@@ -195,36 +197,65 @@ send_mev_transfer() {
         
         if [ $? -eq 0 ]; then
             tx_hashes+=("$TX_OUTPUT")
-            log "📤 Transaction $i sent: $TX_OUTPUT (nonce: $nonce, gas: ${gas_price} wei)"
+            log "📤 TX$i sent: ${TX_OUTPUT:0:10}... (nonce: $nonce)"
         else
-            warn "❌ Transaction $i failed: $TX_OUTPUT"
+            warn "❌ TX$i failed: $TX_OUTPUT"
         fi
-        
-        # Small delay between sends
-        sleep 0.1
     done
     
-    log "⏳ Waiting 3 seconds for transactions to be mined..."
-    sleep 3
+    local send_end_time=$(date +%s)
+    local send_duration=$((send_end_time - send_start_time))
+    log "⚡ All 3 transactions sent in ${send_duration}s"
+    
+    # Wait a moment then check results and analyze timing
+    sleep 2
     
     # Check if we got the MEV bonus
     BALANCE=$(cast call "$contract_addr" "balanceOf(address)(uint256)" "$recipient" --rpc-url "$RPC_URL" 2>/dev/null)
-    BALANCE_ETH=$(cast to-unit "$BALANCE" ether 2>/dev/null || echo "0")
     
-    if [ "$BALANCE" != "0" ] && [ "$BALANCE_ETH" != "0" ]; then
-        log "🎉 SUCCESS! MEV bonus captured! New balance: $BALANCE_ETH MEV"
+    if [ "$BALANCE" != "0" ]; then
+        log "🎉 SUCCESS! MEV bonus captured!"
         
-        # Check which transaction(s) succeeded
+        # Analyze timing for successful transaction
         for tx_hash in "${tx_hashes[@]}"; do
             RECEIPT=$(cast receipt "$tx_hash" --rpc-url "$RPC_URL" 2>/dev/null)
             if echo "$RECEIPT" | grep -q "status.*1"; then
                 BLOCK=$(echo "$RECEIPT" | grep "blockNumber" | awk '{print $2}')
-                log "✅ Winning transaction: $tx_hash (block $BLOCK)"
+                local block_diff=$((BLOCK - target_block))
+                log "✅ Winner: ${tx_hash:0:10}... landed in block $BLOCK (target: $target_block, diff: $block_diff)"
+                
+                # Adaptive lead time adjustment
+                if [ $block_diff -gt 0 ]; then
+                    ADAPTIVE_LEAD_TIME=$((LEAD_TIME + block_diff + 1))
+                    log "📈 Increasing lead time to $ADAPTIVE_LEAD_TIME blocks (was too late)"
+                elif [ $block_diff -lt 0 ]; then
+                    ADAPTIVE_LEAD_TIME=$((LEAD_TIME + block_diff - 1))
+                    [ $ADAPTIVE_LEAD_TIME -lt 1 ] && ADAPTIVE_LEAD_TIME=1
+                    log "📉 Decreasing lead time to $ADAPTIVE_LEAD_TIME blocks (was too early)"
+                else
+                    log "🎯 Perfect timing! Keeping lead time at $LEAD_TIME blocks"
+                fi
             fi
         done
         return 0
     else
-        warn "❌ All transactions failed or were front-run. Balance: $BALANCE_ETH MEV"
+        log "❌ No MEV bonus received - analyzing transaction timing..."
+        
+        # Check where our transactions landed for timing adjustment
+        for tx_hash in "${tx_hashes[@]}"; do
+            RECEIPT=$(cast receipt "$tx_hash" --rpc-url "$RPC_URL" 2>/dev/null)
+            if echo "$RECEIPT" | grep -q "status.*1"; then
+                BLOCK=$(echo "$RECEIPT" | grep "blockNumber" | awk '{print $2}')
+                local block_diff=$((BLOCK - target_block))
+                log "📊 TX ${tx_hash:0:10}... mined in block $BLOCK (diff: $block_diff from target $target_block)"
+                
+                # Still adjust lead time based on where we landed
+                if [ $block_diff -gt 0 ]; then
+                    ADAPTIVE_LEAD_TIME=$((LEAD_TIME + block_diff + 1))
+                    log "📈 Adjusting lead time to $ADAPTIVE_LEAD_TIME blocks"
+                fi
+            fi
+        done
         return 1
     fi
 }
@@ -258,9 +289,11 @@ main() {
     SUCCESSES=0
     TOTAL_MEV_EARNED=0
     
-    # Initialize nonce tracking
+    # Initialize nonce tracking and adaptive lead time
     CURRENT_NONCE=$(cast nonce "$WALLET_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
+    ADAPTIVE_LEAD_TIME=2
     log "🔢 Starting nonce: $CURRENT_NONCE"
+    log "🎯 Starting lead time: $ADAPTIVE_LEAD_TIME blocks"
     
     log "🎮 Starting MEV hunting session..."
     
@@ -290,7 +323,7 @@ main() {
         fi
         
         # Wait until we're close to the target block (with lead time for transaction processing)
-        LEAD_TIME=2  # Submit transaction 8 blocks early to account for latency
+        LEAD_TIME=${ADAPTIVE_LEAD_TIME:-2}  # Start with 2, adapt based on results
         
         if [ $BLOCKS_TO_WAIT -gt $LEAD_TIME ]; then
             wait_for_target_block "$CURRENT_BLOCK" "$NEXT_MEV_BLOCK" "$LEAD_TIME"
@@ -300,7 +333,7 @@ main() {
         ATTEMPTS=$((ATTEMPTS + 1))
         
         # Send the MEV capture transaction
-        if send_mev_transfer "$CONTRACT_ADDRESS" "$WALLET_ADDRESS" "$CURRENT_NONCE"; then
+        if send_mev_transfer "$CONTRACT_ADDRESS" "$WALLET_ADDRESS" "$CURRENT_NONCE" "$NEXT_MEV_BLOCK"; then
             SUCCESSES=$((SUCCESSES + 1))
             TOTAL_MEV_EARNED=$((TOTAL_MEV_EARNED + 100))
             CURRENT_NONCE=$((CURRENT_NONCE + 3))  # Increment by 3 since we sent 3 transactions

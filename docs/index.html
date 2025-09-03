@@ -97,6 +97,24 @@
             border-radius: 4px;
             font-size: 0.9em;
         }
+        .address a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .address a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        td a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        td a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
         .timestamp {
             color: #666;
             font-size: 0.9em;
@@ -121,7 +139,7 @@
     <div class="container">
         <div class="header">
             <h1>🪙 MEV-Coin Dashboard</h1>
-            <p>Real-time MEV-Coin statistics and analytics</p>
+            <p>MEV-Coin statistics and analytics</p>
         </div>
 
         <div class="stats-grid">
@@ -131,7 +149,7 @@
             </div>
             <div class="stat-card">
                 <h3>Current Block</h3>
-                <p class="value">3613888</p>
+                <p class="value">3614987</p>
             </div>
             <div class="stat-card">
                 <h3>Contract Address</h3>
@@ -152,7 +170,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</td><td>100 MEV</td><td>3613400</td><td class="address">N/A</td></tr>
+                    <tr><td><a href="https://celo-sepolia.blockscout.com/address/0xf8750d245f7a87c0d8bd433a8205d4129051ef18" target="_blank" class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</a></td><td>100 MEV</td><td><a href="https://celo-sepolia.blockscout.com/block/3613400" target="_blank">3613400</a></td><td><a href="https://celo-sepolia.blockscout.com/tx/0x2b26f08dc0d908bd5930828d493f131960a9e53849928e6306addffdbef18afa" target="_blank" class="address">0x2b26f08d...</a></td></tr>
                     
                 </tbody>
             </table>
@@ -168,15 +186,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</td><td>100 MEV</td></tr>
+                    <tr><td><a href="https://celo-sepolia.blockscout.com/address/0xf8750d245f7a87c0d8bd433a8205d4129051ef18" target="_blank" class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</a></td><td>100 MEV</td></tr>
                     
                 </tbody>
             </table>
         </div>
 
         <div class="footer">
-            <p>Generated on Wed Sep  3 13:11:19 CEST 2025 | Data from blockchain at https://forno.celo-sepolia.celo-testnet.org</p>
-            <p>MEV-Coin Contract: <span class="address">0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E</span></p>
+            <p>Generated on Wed Sep  3 13:29:39 CEST 2025 | Data from blockchain at https://forno.celo-sepolia.celo-testnet.org</p>
+            <p>MEV-Coin Contract: <a href="https://celo-sepolia.blockscout.com/address/0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E" target="_blank" class="address">0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E</a></p>
         </div>
     </div>
 </body>

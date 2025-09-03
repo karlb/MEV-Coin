@@ -19,9 +19,9 @@ get_mev_bonuses() {
     # Get MEVBonus event signature: keccak256("MEVBonus(address,uint256,uint256)")
     EVENT_SIG="0x826b1be11be0f32436b1ada51990b85f7ce3cc224a513b6a3fb726005d818726"
     
-    # Get recent blocks to search for events (last 1000 blocks)
+    # Get recent blocks to search for events (last 10000 blocks for more coverage)
     current_block=$(cast block-number --rpc-url "$RPC_URL")
-    from_block=$((current_block - 1000))
+    from_block=$((current_block - 10000))
     if [ $from_block -lt 0 ]; then
         from_block=0
     fi
@@ -31,27 +31,53 @@ get_mev_bonuses() {
     event_count=0
     
     # Get events in JSON format for easier parsing
+    echo "  Searching blocks $from_block to $current_block..." >&2
     events=$(cast logs --rpc-url "$RPC_URL" \
         --from-block "$from_block" \
         --address "$CONTRACT_ADDRESS" \
         "$EVENT_SIG" 2>/dev/null || echo "")
     
+    if [ -z "$events" ]; then
+        echo "  No events found in recent blocks" >&2
+    else
+        echo "  Found events, parsing..." >&2
+    fi
+    
     if [ -n "$events" ]; then
-        # Parse each event (simplified parsing - look for key data)
+        # Initialize variables for each event
+        block_num=""
+        tx_hash=""
+        recipient=""
+        
+        # Parse each event (improved parsing to capture complete event data)
         while IFS= read -r line; do
-            if [[ "$line" =~ blockNumber:\ ([0-9]+) ]]; then
+            if [[ "$line" =~ ^-\ address: ]]; then
+                # New event starting - reset variables
+                block_num=""
+                tx_hash=""
+                recipient=""
+            elif [[ "$line" =~ blockNumber:\ ([0-9]+) ]]; then
                 block_num="${BASH_REMATCH[1]}"
             elif [[ "$line" =~ transactionHash:\ (0x[a-fA-F0-9]+) ]]; then
                 tx_hash="${BASH_REMATCH[1]}"
             elif [[ "$line" =~ 0x000000000000000000000000([a-fA-F0-9]+) ]]; then
                 # Extract recipient address from topics
-                recipient="0x${BASH_REMATCH[1]}"
-                if [ ${#recipient} -eq 42 ]; then  # Valid address length
-                    tx_short="${tx_hash:0:10}..."
-                    if [ -z "$tx_hash" ]; then
-                        tx_short="N/A"
+                potential_recipient="0x${BASH_REMATCH[1]}"
+                if [ ${#potential_recipient} -eq 42 ]; then  # Valid address length
+                    recipient="$potential_recipient"
+                fi
+            elif [[ "$line" =~ ^$ ]] || [[ "$line" =~ ^- ]]; then
+                # End of current event or start of new event - process the collected data
+                if [ -n "$block_num" ] && [ -n "$recipient" ] && [ "$line" != "- address: 0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E" ]; then
+                    if [ -n "$tx_hash" ]; then
+                        tx_short="${tx_hash:0:10}..."
+                        tx_link="<a href=\"https://celo-sepolia.blockscout.com/tx/$tx_hash\" target=\"_blank\" class=\"address\">$tx_short</a>"
+                    else
+                        tx_link="<span class=\"address\">N/A</span>"
                     fi
-                    events_html="$events_html<tr><td class=\"address\">$recipient</td><td>100 MEV</td><td>$block_num</td><td class=\"address\">$tx_short</td></tr>"
+                    recipient_link="<a href=\"https://celo-sepolia.blockscout.com/address/$recipient\" target=\"_blank\" class=\"address\">$recipient</a>"
+                    block_link="<a href=\"https://celo-sepolia.blockscout.com/block/$block_num\" target=\"_blank\">$block_num</a>"
+                    events_html="$events_html<tr><td>$recipient_link</td><td>100 MEV</td><td>$block_link</td><td>$tx_link</td></tr>"
                     event_count=$((event_count + 1))
                     if [ $event_count -ge 10 ]; then
                         break
@@ -59,6 +85,20 @@ get_mev_bonuses() {
                 fi
             fi
         done <<< "$events"
+        
+        # Process final event if we have data (in case there's no trailing empty line)
+        if [ -n "$block_num" ] && [ -n "$recipient" ]; then
+            if [ -n "$tx_hash" ]; then
+                tx_short="${tx_hash:0:10}..."
+                tx_link="<a href=\"https://celo-sepolia.blockscout.com/tx/$tx_hash\" target=\"_blank\" class=\"address\">$tx_short</a>"
+            else
+                tx_link="<span class=\"address\">N/A</span>"
+            fi
+            recipient_link="<a href=\"https://celo-sepolia.blockscout.com/address/$recipient\" target=\"_blank\" class=\"address\">$recipient</a>"
+            block_link="<a href=\"https://celo-sepolia.blockscout.com/block/$block_num\" target=\"_blank\">$block_num</a>"
+            events_html="$events_html<tr><td>$recipient_link</td><td>100 MEV</td><td>$block_link</td><td>$tx_link</td></tr>"
+            event_count=$((event_count + 1))
+        fi
     fi
     
     echo "$events_html"
@@ -92,7 +132,8 @@ get_top_holders() {
         
         # Only add if balance is meaningful
         if [ "$balance_eth" != "0" ] && [ "$balance_eth" != "0.0" ] && [ "$balance_eth" != ".00" ]; then
-            holder_data="$holder_data<tr><td class=\"address\">$addr</td><td>$balance_eth MEV</td></tr>"
+            addr_link="<a href=\"https://celo-sepolia.blockscout.com/address/$addr\" target=\"_blank\" class=\"address\">$addr</a>"
+            holder_data="$holder_data<tr><td>$addr_link</td><td>$balance_eth MEV</td></tr>"
         fi
     done
     
@@ -229,6 +270,24 @@ generate_html() {
             border-radius: 4px;
             font-size: 0.9em;
         }
+        .address a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .address a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        td a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        td a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
         .timestamp {
             color: #666;
             font-size: 0.9em;
@@ -308,7 +367,7 @@ generate_html() {
 
         <div class="footer">
             <p>Generated on $(date) | Data from blockchain at $RPC_URL</p>
-            <p>MEV-Coin Contract: <span class="address">$CONTRACT_ADDRESS</span></p>
+            <p>MEV-Coin Contract: <a href="https://celo-sepolia.blockscout.com/address/$CONTRACT_ADDRESS" target="_blank" class="address">$CONTRACT_ADDRESS</a></p>
         </div>
     </div>
 </body>

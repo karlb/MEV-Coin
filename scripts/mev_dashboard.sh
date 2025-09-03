@@ -253,7 +253,7 @@ generate_html() {
     <div class="container">
         <div class="header">
             <h1>🪙 MEV-Coin Dashboard</h1>
-            <p>Real-time MEV-Coin statistics and analytics</p>
+            <p>MEV-Coin statistics and analytics</p>
         </div>
 
         <div class="stats-grid">

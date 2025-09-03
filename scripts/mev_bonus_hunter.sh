@@ -170,14 +170,16 @@ wait_for_target_block() {
 send_mev_transfer() {
     local contract_addr=$1
     local recipient=$2
+    local base_nonce=$3
     
-    log "🚀 Sending 3 async MEV capture transactions to $recipient..."
+    log "🚀 Sending 3 async MEV capture transactions to $recipient... (nonce: $base_nonce+)"
     
-    # Send 3 async transactions with slightly different gas prices for variety
+    # Send 3 async transactions with explicit nonces and different gas prices
     local tx_hashes=()
     local base_gas=35000000000
     
     for i in 1 2 3; do
+        local nonce=$((base_nonce + i - 1))  # nonce, nonce+1, nonce+2
         local gas_price=$((base_gas + i * 1000000000))  # 35, 36, 37 Gwei
         TX_OUTPUT=$(cast send "$contract_addr" \
             "transfer(address,uint256)(bool)" \
@@ -187,12 +189,13 @@ send_mev_transfer() {
             --rpc-url "$RPC_URL" \
             --gas-limit 200000 \
             --gas-price $gas_price \
+            --nonce $nonce \
             --async \
             2>&1)
         
         if [ $? -eq 0 ]; then
             tx_hashes+=("$TX_OUTPUT")
-            log "📤 Transaction $i sent: $TX_OUTPUT (${gas_price} wei gas)"
+            log "📤 Transaction $i sent: $TX_OUTPUT (nonce: $nonce, gas: ${gas_price} wei)"
         else
             warn "❌ Transaction $i failed: $TX_OUTPUT"
         fi
@@ -255,6 +258,10 @@ main() {
     SUCCESSES=0
     TOTAL_MEV_EARNED=0
     
+    # Initialize nonce tracking
+    CURRENT_NONCE=$(cast nonce "$WALLET_ADDRESS" --rpc-url "$RPC_URL" 2>/dev/null || echo "0")
+    log "🔢 Starting nonce: $CURRENT_NONCE"
+    
     log "🎮 Starting MEV hunting session..."
     
     # Main loop
@@ -283,7 +290,7 @@ main() {
         fi
         
         # Wait until we're close to the target block (with lead time for transaction processing)
-        LEAD_TIME=3  # Submit transaction 8 blocks early to account for latency
+        LEAD_TIME=2  # Submit transaction 8 blocks early to account for latency
         
         if [ $BLOCKS_TO_WAIT -gt $LEAD_TIME ]; then
             wait_for_target_block "$CURRENT_BLOCK" "$NEXT_MEV_BLOCK" "$LEAD_TIME"
@@ -293,14 +300,18 @@ main() {
         ATTEMPTS=$((ATTEMPTS + 1))
         
         # Send the MEV capture transaction
-        if send_mev_transfer "$CONTRACT_ADDRESS" "$WALLET_ADDRESS"; then
+        if send_mev_transfer "$CONTRACT_ADDRESS" "$WALLET_ADDRESS" "$CURRENT_NONCE"; then
             SUCCESSES=$((SUCCESSES + 1))
             TOTAL_MEV_EARNED=$((TOTAL_MEV_EARNED + 100))
+            CURRENT_NONCE=$((CURRENT_NONCE + 3))  # Increment by 3 since we sent 3 transactions
             log "💎 Total MEV earned this session: $TOTAL_MEV_EARNED MEV"
+            log "🔢 Updated nonce: $CURRENT_NONCE"
             log "⏳ Waiting for next MEV opportunity..."
             sleep 10
         else
             warn "❌ MEV capture attempt $ATTEMPTS failed - may have been front-run"
+            CURRENT_NONCE=$((CURRENT_NONCE + 3))  # Still increment nonce even on failure
+            log "🔢 Updated nonce: $CURRENT_NONCE"
             log "⚡ Retrying soon..."
             sleep 5
         fi

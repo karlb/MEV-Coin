@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEV-Coin Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #667eea;
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 0;
+        }
+        .section {
+            margin-bottom: 40px;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .section h2 {
+            color: #667eea;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover {
+            background-color: #f8f9ff;
+        }
+        .address {
+            font-family: 'Courier New', monospace;
+            background: #f0f0f0;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+        }
+        .no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🪙 MEV-Coin Dashboard</h1>
+            <p>Real-time MEV-Coin statistics and analytics</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Supply</h3>
+                <p class="value">📈 Fetching contract statistics...
+0 MEV</p>
+            </div>
+            <div class="stat-card">
+                <h3>Current Block</h3>
+                <p class="value">📈 Fetching contract statistics...
+105</p>
+            </div>
+            <div class="stat-card">
+                <h3>Contract Address</h3>
+                <p class="value" style="font-size: 0.8em;">0x4b6ab5f819a515382b0deb6935d793817bb4af28</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🎉 Recent MEV Bonuses</h2>
+            <p>Latest MEV bonus events (100 MEV tokens awarded at every 100th block)</p>
+            <div id="mev-events">
+                <div class="no-data">
+                    <p>No recent MEV bonus events found. MEV bonuses are awarded when transfers occur at blocks that are multiples of 100.</p>
+                    <p>Try making some transfers to trigger MEV bonuses!</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🏆 Top MEV-Coin Holders</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Address</th>
+                        <th>Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    💰 Fetching top MEV-Coin balances...
+<tr><td>0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266</td><td>0 MEV</td></tr><tr><td>0x70997970c51812dc3a010c7d01b50e0d17dc79c8</td><td>0 MEV</td></tr><tr><td>0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc</td><td>0 MEV</td></tr><tr><td>0x90f79bf6eb2c4f870365e785982e1f101e93b906</td><td>0 MEV</td></tr>
+                    
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <p>Generated on Wed Sep  3 12:18:28 CEST 2025 | Data from blockchain at http://localhost:8545</p>
+            <p>MEV-Coin Contract: <span class="address">0x4b6ab5f819a515382b0deb6935d793817bb4af28</span></p>
+        </div>
+    </div>
+</body>
+</html>

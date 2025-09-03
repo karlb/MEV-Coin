@@ -1,0 +1,10 @@
+title: MEV-Coin Dashboard
+description: Real-time MEV-Coin statistics and analytics
+theme: jekyll-theme-minimal
+plugins:
+  - jekyll-relative-links
+relative_links:
+  enabled: true
+  collections: true
+include:
+  - index.html

@@ -127,29 +127,35 @@
         <div class="stats-grid">
             <div class="stat-card">
                 <h3>Total Supply</h3>
-                <p class="value">📈 Fetching contract statistics...
-0 MEV</p>
+                <p class="value">100 MEV</p>
             </div>
             <div class="stat-card">
                 <h3>Current Block</h3>
-                <p class="value">📈 Fetching contract statistics...
-105</p>
+                <p class="value">3613888</p>
             </div>
             <div class="stat-card">
                 <h3>Contract Address</h3>
-                <p class="value" style="font-size: 0.8em;">0x4b6ab5f819a515382b0deb6935d793817bb4af28</p>
+                <p class="value" style="font-size: 0.8em;">0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E</p>
             </div>
         </div>
 
         <div class="section">
             <h2>🎉 Recent MEV Bonuses</h2>
             <p>Latest MEV bonus events (100 MEV tokens awarded at every 100th block)</p>
-            <div id="mev-events">
-                <div class="no-data">
-                    <p>No recent MEV bonus events found. MEV bonuses are awarded when transfers occur at blocks that are multiples of 100.</p>
-                    <p>Try making some transfers to trigger MEV bonuses!</p>
-                </div>
-            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipient</th>
+                        <th>Amount</th>
+                        <th>Block</th>
+                        <th>Transaction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</td><td>100 MEV</td><td>3613400</td><td class="address">N/A</td></tr>
+                    
+                </tbody>
+            </table>
         </div>
 
         <div class="section">
@@ -162,16 +168,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    💰 Fetching top MEV-Coin balances...
-<tr><td>0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266</td><td>0 MEV</td></tr><tr><td>0x70997970c51812dc3a010c7d01b50e0d17dc79c8</td><td>0 MEV</td></tr><tr><td>0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc</td><td>0 MEV</td></tr><tr><td>0x90f79bf6eb2c4f870365e785982e1f101e93b906</td><td>0 MEV</td></tr>
+                    <tr><td class="address">0xf8750d245f7a87c0d8bd433a8205d4129051ef18</td><td>100 MEV</td></tr>
                     
                 </tbody>
             </table>
         </div>
 
         <div class="footer">
-            <p>Generated on Wed Sep  3 12:18:28 CEST 2025 | Data from blockchain at http://localhost:8545</p>
-            <p>MEV-Coin Contract: <span class="address">0x4b6ab5f819a515382b0deb6935d793817bb4af28</span></p>
+            <p>Generated on Wed Sep  3 13:11:19 CEST 2025 | Data from blockchain at https://forno.celo-sepolia.celo-testnet.org</p>
+            <p>MEV-Coin Contract: <span class="address">0x3c257c32Ac296d20D86D9F8bD6225915F830aa0E</span></p>
         </div>
     </div>
 </body>

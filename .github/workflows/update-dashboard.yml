@@ -1,0 +1,61 @@
+name: Update MEV-Coin Dashboard
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [ master ]
+    paths: 
+      - 'scripts/mev_dashboard.sh'
+      - '.github/workflows/update-dashboard.yml'
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    - name: Make dashboard script executable
+      run: chmod +x scripts/mev_dashboard.sh
+
+    - name: Generate MEV-Coin Dashboard
+      run: |
+        cd scripts
+        ./mev_dashboard.sh
+      env:
+        ETH_RPC_URL: https://forno.celo-sepolia.celo-testnet.org
+
+    - name: Check for changes
+      id: verify-changed-files
+      run: |
+        if [ -n "$(git status --porcelain docs/index.html)" ]; then
+          echo "changed=true" >> $GITHUB_OUTPUT
+        else
+          echo "changed=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Commit and push dashboard updates
+      if: steps.verify-changed-files.outputs.changed == 'true'
+      run: |
+        git config --local user.name 'github-actions[bot]'
+        git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+        git add docs/index.html
+        git commit -m "🤖 Auto-update MEV-Coin dashboard - $(date -u '+%Y-%m-%d %H:%M UTC')"
+        git push
+
+    - name: No changes detected
+      if: steps.verify-changed-files.outputs.changed == 'false'
+      run: echo "✅ Dashboard is already up to date - no changes needed"

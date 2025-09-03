@@ -36,7 +36,13 @@ The MEV-Coin dashboard provides real-time statistics and analytics for MEV-Coin 
    open ../docs/index.html
    ```
 
-2. **GitHub Pages Deployment**:
+2. **Automatic Updates** ⚡:
+   - GitHub Action automatically updates the dashboard every hour
+   - Queries fresh data from Celo Sepolia blockchain
+   - Only commits changes when new MEV events or balance changes occur
+   - Manual updates can be triggered via GitHub Actions tab
+
+3. **GitHub Pages Deployment**:
    - The dashboard is configured for GitHub Pages in the `/docs` directory
    - Push to GitHub and enable Pages in repository settings
    - Set source to "Deploy from a branch" → "main" → "/docs folder"
@@ -44,6 +50,10 @@ The MEV-Coin dashboard provides real-time statistics and analytics for MEV-Coin 
 
 ### Prerequisites
 
-- Local Ethereum node running on `localhost:8545` (e.g., Anvil)
 - [Foundry](https://getfoundry.sh/) installed (`cast` command)
-- MEV-Coin contract deployed and funded
+- Internet connection to query Celo Sepolia blockchain
+- MEV-Coin contract deployed on Celo Sepolia testnet
+
+**Networks Supported:**
+- **Celo Sepolia** (default): `https://forno.celo-sepolia.celo-testnet.org`  
+- Custom RPC via `ETH_RPC_URL` environment variable
